@@ -40,31 +40,74 @@
 
 ## 4. Starbug Mission Architecture
 
-Starbug operations are structured as **standalone mission modules** launched from Deck 27 Hangar Bay or selected via the Space Map:
+Starbug operations are structured as **standalone mission modules** launched from Deck 27 Hangar Bay or selected via the Space Map.
 
-```
-[Red Dwarf Deck HUB] ──(Launch Starbug)──► [Mission Load Screen / Briefing]
-                                                  │
-                                                  ▼
-                                    +---------------------------+
-                                    | STARBUG MISSION TYPES     |
-                                    +---------------------------+
-                                    | 1. Deep Space Intercept   |
-                                    | 2. Asteroid Run / Salvage |
-                                    | 3. Atmospheric Crash Landing|
-                                    +---------------------------+
-```
+### 4.1 Mission Pillars
+- **High-Stakes Visual Panic, Low Mechanical Friction:** warning klaxons, structural sparks, and Holly vector warnings sell catastrophe while generous handling buffers keep the actual flying forgiving.
+- **Dynamic Camera Framing:** seamless blend between a tight 3rd-person chase camera during maneuvers and a wider orbital view during dogfights.
+- **The "Needle-Thread" Illusion:** every mission ends with a landing sequence that *looks* narrow and precise but is backed by assist vectors that guarantee a clean dock (see §4.4).
 
-### Mission Types
-1. **Space Intercept & Combat:** Dogfight rogue Simulant ships and protect *Red Dwarf*'s outer hull. `TODO (design): objective/fail states, enemy patterns.`
-2. **Asteroid Run / Salvage.** `TODO (design): full description.`
-3. **Atmospheric Crash Landing.** `TODO (design): full description — reference frame exists (STARBUG CRASH LANDING, swamp descent, hull integrity/engine failure HUD).`
+### 4.2 Mission Taxonomy
+
+| Mission Type | Environmental Theme | Primary Hazards | Core Objective |
+| :--- | :--- | :--- | :--- |
+| **Orbital Ambush** | Deep space, dense asteroid field | Simulant fighter drones, kinetic spatial debris | Clear flight corridor & escort *Red Dwarf* |
+| **Derelict Salvage** | Unpowered capital ship hulls | Active arc lightning, zero-gravity dead zones | Navigate inner channels & extract tech components |
+| **Swamp Re-entry** | Low-altitude planetary atmosphere | Extreme turbulence, dense fog, swamp canopy | Maintain glide slope & survive crash landing |
+
+### 4.3 Detailed Mission: "Asteroid Ambush" (Mission 01)
+
+**Phase 1 — Launch & Flight Corridor (0:00–1:30)**
+Launch from Deck 27 Hangar and clear the incoming asteroid field. Linear corridor
+navigation following glowing diegetic vector waypoints ("SAFE FLIGHT CORRIDOR 1.5 km")
+while dodging space debris. HUD: target brackets, Hull Integrity %, Fuel %, Speed.
+
+**Phase 2 — Simulant Intercept & Dogfight (1:30–3:30)**
+Eliminate 3 waves of rogue Simulant scout ships targeting the Starbug's thrusters.
+Lock-on heat-seeking lasers; a booster dodge-roll breaks incoming missile locks
+("!! INCOMING FIRE !!" threat indicator). Holly delivers escalating panic commentary
+over comms as the comedic beat.
+
+**Phase 3 — The "Illusion of Skill" Hangar Docking (3:30–4:30)**
+Return to *Red Dwarf* and dock in Deck 27 before the containment forcefield collapses.
+Assists (see §4.4 for the implementation): a wide capture cone pulls the Starbug toward
+the bay centerline, auto-leveling kicks in closer in, and a speed dampener bleeds off
+momentum at touchdown, triggering spark VFX and the transition back to the Deck 27
+interior.
+
+### 4.4 Docking Assist — design intent
+
+Not a literal flight-skill test: an invisible assist volume around each dock makes
+every attempt land cleanly, while the camera/VFX sell it as a close thing.
+
+- **Capture cone (~150m):** within this radius, gently blend the Starbug's velocity
+  vector toward the dock centerline — proportional to proximity, not a hard snap.
+  Alpha = `clamp(1 - distanceToDock / captureRadius, 0, 1)`.
+- **Auto-level zone (~50m):** blend rotation toward the bay floor's parallel
+  orientation as alpha increases.
+- **Touchdown threshold (~10m):** speed dampens to near-zero, docking-complete event
+  fires (spark VFX, transition back to the Deck 27 interior hub).
+
+See [`TDD.md`](TDD.md) §6 for the Rapier/Three.js implementation of this.
+
+### 4.5 Flight HUD data requirements
+
+Engine-agnostic data the flight HUD binds to (was specified as Scaleform/AS3 bindings
+in an Unreal-targeted draft — the data requirements carry over, the UI tech doesn't):
+
+| HUD element | Data source | Update |
+| :--- | :--- | :--- |
+| Hull bar | `currentHullIntegrity / maxHullIntegrity` | per frame |
+| Fuel bar | `currentFuel / maxFuel` (0.0–1.0 fill) | per frame |
+| Speed readout | `velocity.length()` | per frame |
+| Missile-lock warning | boolean, toggled on incoming Simulant missile lock | event-driven |
+| Radar | rotates threat icons relative to `starbug.rotation.yaw` | per frame |
 
 ---
 
 ## 5+. `TODO (design)`
 
-Remaining sections not yet received: mission detail for 2–3 above, any additional
-systems beyond character switching + Starbug missions, narrative/mission structure
-across Decks 1–28, enemy/threat roster, progression, and anything else Gemini's
-GDD/TDD covers that hasn't been pasted into this repo yet.
+Remaining gaps: any systems beyond character switching + Starbug missions, narrative/
+mission structure across Decks 1–28, enemy/threat roster beyond Simulant scouts/
+fighters, progression, Derelict Salvage and Swamp Re-entry mission beat-by-beat detail
+(taxonomy above has their theme/hazards/objective, not a phase breakdown yet).

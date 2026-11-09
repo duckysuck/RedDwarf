@@ -62,12 +62,57 @@ Switch flow (`Alt` held → radial wheel → release on target):
   runs, not simulated in the background
 - Return-to-ship transition reuses the schematic camera fly-in from §2
 
-## 5. Open implementation questions
+## 6. Starbug flight physics & docking assist
+
+Implements GDD §4.3–4.4. Source material arrived as an Unreal/UnrealScript spec
+(`SVehicle`, `PhysicsVolume`, Kismet) — not usable as-is since we're on Three.js/Rapier,
+not Unreal. This section re-implements the same *behavior* with our own stack; see
+`src/starbug/` for the working code.
+
+### 6.1 `StarbugController` — 6-DOF flight
+
+A Rapier dynamic rigid body (not kinematic — we want real impulse/torque physics for
+the dogfight feel) wrapped by a thin controller:
+
+- `applyFlightInput(forward, strafe, pitch, yaw, roll, dt)` applies linear thrust
+  along the body's forward/right axes and rotational torque, scaled by per-axis rate
+  constants (`engineThrust`, `strafeThrust`, `pitchRate`, `yawRate`, `rollRate`)
+- Fuel drains proportionally to force magnitude applied; at zero fuel (or during a
+  scripted `engineFailure` state), thrust input is ignored and a constant downward
+  force is applied instead — the "atmospheric stall" fallback for Swamp Re-entry
+- Telemetry (`hullIntegrity`, `fuel`, `velocity.length()`) is plain state on the
+  controller, read directly by the HUD per GDD §4.5 — no event bus needed for values
+  polled every frame
+
+### 6.2 `DockingVolume` — the "needle-thread" illusion
+
+A trigger volume (Rapier sensor collider, not solid) placed at each hangar dock:
+
+- On overlap with the Starbug's collider, the volume takes over blending the
+  Starbug's velocity and rotation each frame — the player's flight input is *not*
+  cut, it's blended against, so it still feels controlled
+- `alpha = clamp(1 - distanceToDock / captureRadius, 0, 1)` — the same proportional
+  blend as the design spec, just expressed in Three.js vector math instead of
+  UnrealScript's `VLerp`/`RInterpTo`
+- Below the touchdown threshold, zero out remaining velocity and fire a
+  `docking-complete` DOM event that the mission-scene controller (§4) listens for to
+  trigger the return-to-ship transition
+
+### 6.3 Why not copy the Unreal source directly
+
+Beyond the engine mismatch, `SVehicle`/`PhysicsVolume`/Kismet event triggers don't
+have Three.js/Rapier equivalents worth mimicking 1:1 — e.g. Rapier sensor colliders
+already do what `PhysicsVolume.Touch` did, so there's no separate "volume" class
+needed, just a sensor collider with a callback.
+
+## 7. Open implementation questions
 
 - Exact VRM source/rig pipeline for the three crew models (placeholder capsule in
   `src/main.js` until real/stand-in rigs exist)
 - Rapier character-controller tuning (step height, slope limits) — needed before
   Cat's wall-jump/ledge traversal can be built
-- Mission 2/3 detail is still `TODO (design)` in the GDD — blocks building Salvage and
-  Crash Landing mission scenes specifically; Intercept can start from the GDD's
-  existing description
+- Derelict Salvage and Swamp Re-entry still only have taxonomy-level detail in the
+  GDD (theme/hazards/objective, no phase breakdown) — Orbital Ambush (GDD §4.3) has
+  enough detail to build first
+- `StarbugController`/`DockingVolume` (§6) are written but not yet wired into a
+  mission scene — no Starbug mesh, no hangar geometry, no HUD overlay yet
